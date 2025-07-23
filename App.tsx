@@ -1,159 +1,178 @@
-// App.tsx
 import React, { useState } from 'react'; // useState をインポート
 import { StyleSheet, Text, View, Button } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
-// --- データ構造の定義 (interface) ---
+// こどもプロフィールの「型」を定義するお部屋（インターフェース）
+interface ChildProfile {
+  id: string; // こどもを識別するための一意のID
+  name: string; // こどもの名前
+  currentTaskId?: string; // 現在フォーカスしているタスクのID (任意)
+  // 他にも年齢や学年など、必要に応じて追加できます
+}
 
-// 毎日やる宿題の各項目を定義するインターフェース
+// 毎日やる宿題の「種類」を定義するお部屋（インターフェース）
 interface DailyTask {
-  id: string;   // 宿題の一意なID (例: "natsuyasumi-no-tomo")
-  name: string; // 宿題の表示名 (例: "なつやすみのとも")
+  id: string;
+  name: string;
 }
 
-// その日の宿題の進捗を管理するインターフェース
-interface DailyTaskStatus {
-  taskId: string;   // DailyTaskのIDを参照
-  completed: boolean; // その日が完了したかどうかのフラグ
-}
+// テスト用のダミーこどもデータ
+const dummyChildren: ChildProfile[] = [
+  { id: 'child1', name: 'たろう' },
+  { id: 'child2', name: 'はなこ' },
+  { id: 'child3', name: 'けんた' },
+];
+// テスト用のダミー日次タスクデータ
+const dummyDailyTasks: DailyTask[] = [
+  { id: 'task1', name: '漢字練習' },
+  { id: 'task2', name: '計算ドリル' },
+  { id: 'task3', name: '音読' },
+  { id: 'task4', name: '日記' },
+];
 
-// MainScreenにnavigation propの型を定義
-type MainScreenProps = {
-  navigation: any; // より厳密な型は後で導入します
-};
+// スタックナビゲーターを作成
+const Stack = createStackNavigator();
 
-const MainScreen: React.FC<MainScreenProps> = ({ navigation }) => {
-  // --- ここからMainScreenの状態管理 ---
-
-  // 1. 現在表示している日付を管理するState
-  // 初期値は今日の日付に設定します
-  const [currentDate, setCurrentDate] = useState<Date>(new Date());
-
-  // 2. 毎日やる宿題のリスト（ダミーデータ）
-  // 後でFirebaseから取得するようにしますが、まずはこれで表示を確認します
-  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([
-    { id: 'natsuyasumi-no-tomo', name: 'なつやすみのとも' },
-    { id: 'asagao-mizuyari', name: 'あさがおの水やりと観察' },
-    { id: 'keisan-renshu', name: '計算練習（足し算・引き算）' },
-    { id: 'keisan-drill', name: 'けいさんドリル' },
-    { id: 'dokusho', name: 'どくしょ（登校日までに5冊以上）' },
-    { id: 'keikaku-check', name: 'なつやすみの計画のチェック' },
-    { id: 'kenkou-calendar', name: 'けんこうせいかつカレンダー' },
-  ]);
-
-  // --- 日付表示のためのヘルパー関数 ---
-  // 例: "7月20日 (土)" のような形式に整形します
-  const formatDate = (date: Date) => {
-    const month = date.getMonth() + 1; // 月は0から始まるため+1
-    const day = date.getDate();
-    const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-    const dayOfWeek = weekdays[date.getDay()]; // getDay() は曜日を数値で返す (0=日, 1=月, ...)
-    return `${month}月${day}日 (${dayOfWeek})`;
+// メイン画面コンポーネント
+// Propsとしてnavigation, selectedDate, currentChildを受け取る
+function MainScreen({ navigation, selectedDate, currentChild }: any) {
+  // 曜日名を取得するヘルパー関数
+  const getDayName = (day: number) => {
+    const days = ['日', '月', '火', '水', '木', '金', '土'];
+    return days[day];
   };
 
-  // --- 曜日の色分けのためのヘルパー関数 ---
-  // 土曜は青、日曜は赤のスタイルを返します
-  const getDayOfWeekColor = (date: Date) => {
-    const day = date.getDay(); // 0:日曜日, 1:月曜日, ..., 6:土曜日
-    if (day === 0) { // 日曜日
-      return styles.sundayText;
-    } else if (day === 6) { // 土曜日
-      return styles.saturdayText;
+  // 曜日によって色を変えるヘルパー関数
+  const getDayColor = (day: number) => {
+    switch (day) {
+      case 0: // 日曜日
+        return 'red';
+      case 6: // 土曜日
+        return 'blue';
+      default: // 平日
+        return 'black';
     }
-    return null; // 平日は特別な色なし
   };
 
   return (
-    <View style={styles.screenContainer}>
-      {/* 画面上部に日付表示 */}
-      <View style={styles.dateDisplayContainer}>
-        <Text style={[styles.dateDisplayText, getDayOfWeekColor(currentDate)]}>
-          {formatDate(currentDate)}
+    <View style={styles.container}>
+      {/* 現在のこどもの名前を表示 */}
+      {currentChild && (
+        <Text style={styles.childName}>
+          {currentChild.name} の宿題
         </Text>
+      )}
+
+      {/* 日付の表示 */}
+      <Text style={[styles.dateText, { color: getDayColor(selectedDate.getDay()) }]}>
+        {`${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 (${getDayName(selectedDate.getDay())})`}
+      </Text>
+
+      <Text style={styles.title}>メイン画面（日次進捗）</Text>
+
+      <View style={styles.taskList}>
+        {dummyDailyTasks.map((task) => (
+          <View key={task.id} style={styles.taskItem}>
+            <Text style={styles.taskName}>{task.name}</Text>
+          </View>
+        ))}
       </View>
 
-      <Text style={styles.screenTitle}>メイン画面（日次進捗）</Text>
       <Button
         title="カレンダー画面へ"
         onPress={() => navigation.navigate('Calendar')}
       />
-      {/* 今後、ここに毎日やる宿題のチェックリストなどを追加します */}
     </View>
   );
-};
+}
 
-// CalendarScreenにnavigation propの型を定義
-type CalendarScreenProps = {
-  navigation: any;
-};
-
-const CalendarScreen: React.FC<CalendarScreenProps> = ({ navigation }) => {
+// カレンダー画面コンポーネント
+function CalendarScreen({ navigation }: any) {
   return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.screenTitle}>カレンダー画面（計画・全体進捗）</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>カレンダー画面</Text>
       <Button
         title="メイン画面へ"
-        onPress={() => navigation.goBack()}
+        onPress={() => navigation.navigate('Main')}
       />
     </View>
   );
-};
+}
 
-// --- スタックナビゲーターの作成 ---
-const Stack = createStackNavigator();
+// アプリのメインコンポーネント
+export default function App() {
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
-const App: React.FC = () => {
+  // 現在選択されているこどものIDを管理するstate
+  // 初期値として、ダミーデータの最初のこどものIDを設定
+  const [currentChildId, setCurrentChildId] = useState<string>(dummyChildren[0].id);
+
+  // 現在選択されているこどものプロフィールを見つける
+  const currentChild = dummyChildren.find(
+    (child) => child.id === currentChildId
+  );
+
   return (
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Main">
-        <Stack.Screen
-          name="Main"
-          component={MainScreen}
-          options={{ headerShown: false }} // メイン画面のヘッダーを非表示にする（日付表示をカスタムするため）
-        />
-        <Stack.Screen
-          name="Calendar"
-          component={CalendarScreen}
-          options={{ title: 'カレンダー' }}
-        />
-        {/* 今後、こども選択/設定画面などもここに追加します */}
+        <Stack.Screen name="Main">
+          {(props) => (
+            <MainScreen
+              {...props}
+              selectedDate={selectedDate}
+              currentChild={currentChild} // currentChildをMainScreenに渡す
+            />
+          )}
+        </Stack.Screen>
+        <Stack.Screen name="Calendar" component={CalendarScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
-};
+}
 
-// --- スタイル定義 ---
+// スタイル定義
 const styles = StyleSheet.create({
-  screenContainer: {
+  container: {
     flex: 1,
-    backgroundColor: '#f0f4f8',
-    paddingTop: 50, // 上部に余白
-    paddingHorizontal: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20, // コンテンツが端に寄りすぎないようにパディングを追加
   },
-  screenTitle: {
-    fontSize: 22,
+  childName: { // 新しく追加したスタイル
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 30,
+    marginBottom: 10,
     color: '#333',
-    textAlign: 'center', // タイトルは中央揃え
   },
-  dateDisplayContainer: {
-    width: '100%', // 親要素の幅いっぱいに広げる
-    alignItems: 'center', // 日付を中央揃え
+  dateText: {
+    fontSize: 20,
     marginBottom: 20,
   },
-  dateDisplayText: {
+  title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#333', // デフォルトの文字色
+    marginBottom: 20,
   },
-  saturdayText: {
-    color: 'blue', // 土曜日は青
+  taskList: { // ← 新しく追加
+    width: '80%', // リストの幅
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
   },
-  sundayText: {
-    color: 'red', // 日曜日は赤
+  taskItem: { // ← 新しく追加
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    flexDirection: 'row', // チェックボックスとテキストを横並びにするため
+    alignItems: 'center',
   },
+  taskName: { // ← 新しく追加
+    fontSize: 18,
+    marginLeft: 10, // チェックボックスとの間隔
+  },
+  // 必要に応じて、他のスタイルもここに追加できます
 });
-
-export default App;
