@@ -8,14 +8,13 @@ interface ChildProfile {
   id: string; // こどもを識別するための一意のID
   name: string; // こどもの名前
   currentTaskId?: string; // 現在フォーカスしているタスクのID (任意)
-  // 他にも年齢や学年など、必要に応じて追加できます
 }
 
 // 毎日やる宿題の「種類」を定義するお部屋（インターフェース）
 interface DailyTask {
   id: string;
   name: string;
-  isCompleted: boolean; // ★追加：タスクが完了したかどうか
+  isCompleted: boolean;
 }
 
 // テスト用のダミーこどもデータ
@@ -37,7 +36,7 @@ const Stack = createStackNavigator();
 
 // メイン画面コンポーネント
 // Propsとしてnavigation, selectedDate, currentChildを受け取る
-function MainScreen({ navigation, selectedDate, currentChild }: any) {
+function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId }: any) {
   // 日次タスクのリストとその完了状態を管理するstate
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(dummyDailyTasks);
   
@@ -76,6 +75,21 @@ function MainScreen({ navigation, selectedDate, currentChild }: any) {
           {currentChild.name} の宿題
         </Text>
       )}
+
+      {/* 次のこどもへ切り替えるボタン */}
+      <Button
+        title="次のこどもへ"
+        onPress={() => {
+          // 現在のこどものインデックスを見つける
+          const currentIndex = dummyChildren.findIndex(
+            (child) => child.id === currentChild?.id
+          );
+          // 次のインデックスを計算（リストの最後なら最初に戻る）
+          const nextIndex = (currentIndex + 1) % dummyChildren.length;
+          // 次のこどものIDに更新
+          setCurrentChildId(dummyChildren[nextIndex].id); // ★setCurrentChildId は App コンポーネントから渡される想定
+        }}
+      />
 
       {/* 日付の表示 */}
       <Text style={[styles.dateText, { color: getDayColor(selectedDate.getDay()) }]}>
@@ -147,6 +161,7 @@ export default function App() {
               {...props}
               selectedDate={selectedDate}
               currentChild={currentChild} // currentChildをMainScreenに渡す
+              setCurrentChildId={setCurrentChildId}
             />
           )}
         </Stack.Screen>
@@ -163,9 +178,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20, // コンテンツが端に寄りすぎないようにパディングを追加
+    padding: 20,
   },
-  childName: { // 新しく追加したスタイル
+  childName: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 10,
@@ -180,15 +195,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
   },
-  taskList: { // ← 新しく追加
-    width: '80%', // リストの幅
+  taskList: {
+    width: '80%',
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
     padding: 10,
   },
-  taskItem: { // ← 新しく追加
+  taskItem: {
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
@@ -200,15 +215,14 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     flex: 1, // テキストがチェックマークのスペースを考慮して広がるように
   },
-  completedTaskName: { // ★追加：完了したタスクのテキストスタイル
+  completedTaskName: {
     textDecorationLine: 'line-through', // 打ち消し線
     color: '#888', // 灰色にする
   },
-  checkMark: { // ★追加：チェックマークのスタイル
+  checkMark: {
     fontSize: 20,
     color: 'green',
     fontWeight: 'bold',
     marginLeft: 10,
   },
-  // 必要に応じて、他のスタイルもここに追加できます
 });
