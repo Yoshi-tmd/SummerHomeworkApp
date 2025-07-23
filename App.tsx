@@ -1,5 +1,5 @@
 import React, { useState } from 'react'; // useState をインポート
-import { StyleSheet, Text, View, Button } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
@@ -15,6 +15,7 @@ interface ChildProfile {
 interface DailyTask {
   id: string;
   name: string;
+  isCompleted: boolean; // ★追加：タスクが完了したかどうか
 }
 
 // テスト用のダミーこどもデータ
@@ -25,10 +26,10 @@ const dummyChildren: ChildProfile[] = [
 ];
 // テスト用のダミー日次タスクデータ
 const dummyDailyTasks: DailyTask[] = [
-  { id: 'task1', name: '漢字練習' },
-  { id: 'task2', name: '計算ドリル' },
-  { id: 'task3', name: '音読' },
-  { id: 'task4', name: '日記' },
+  { id: 'task1', name: '漢字練習', isCompleted: false },
+  { id: 'task2', name: '計算ドリル', isCompleted: false },
+  { id: 'task3', name: '音読', isCompleted: false },
+  { id: 'task4', name: '日記', isCompleted: false },
 ];
 
 // スタックナビゲーターを作成
@@ -37,6 +38,18 @@ const Stack = createStackNavigator();
 // メイン画面コンポーネント
 // Propsとしてnavigation, selectedDate, currentChildを受け取る
 function MainScreen({ navigation, selectedDate, currentChild }: any) {
+  // 日次タスクのリストとその完了状態を管理するstate
+  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(dummyDailyTasks);
+  
+  // タスクの完了状態を切り替える関数
+  const toggleTaskCompletion = (taskId: string) => {
+    setDailyTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task
+      )
+    );
+  };
+
   // 曜日名を取得するヘルパー関数
   const getDayName = (day: number) => {
     const days = ['日', '月', '火', '水', '木', '金', '土'];
@@ -72,10 +85,22 @@ function MainScreen({ navigation, selectedDate, currentChild }: any) {
       <Text style={styles.title}>メイン画面（日次進捗）</Text>
 
       <View style={styles.taskList}>
-        {dummyDailyTasks.map((task) => (
-          <View key={task.id} style={styles.taskItem}>
-            <Text style={styles.taskName}>{task.name}</Text>
-          </View>
+        {dailyTasks.map((task) => (
+          <TouchableOpacity
+            key={task.id}
+            style={styles.taskItem}
+            onPress={() => toggleTaskCompletion(task.id)}
+          >
+            <Text
+              style={[
+                styles.taskName,
+                task.isCompleted && styles.completedTaskName,
+              ]}
+            >
+              {task.name}
+            </Text>
+            {task.isCompleted && <Text style={styles.checkMark}>✓</Text>}
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -170,9 +195,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row', // チェックボックスとテキストを横並びにするため
     alignItems: 'center',
   },
-  taskName: { // ← 新しく追加
+  taskName: {
     fontSize: 18,
-    marginLeft: 10, // チェックボックスとの間隔
+    marginLeft: 10,
+    flex: 1, // テキストがチェックマークのスペースを考慮して広がるように
+  },
+  completedTaskName: { // ★追加：完了したタスクのテキストスタイル
+    textDecorationLine: 'line-through', // 打ち消し線
+    color: '#888', // 灰色にする
+  },
+  checkMark: { // ★追加：チェックマークのスタイル
+    fontSize: 20,
+    color: 'green',
+    fontWeight: 'bold',
+    marginLeft: 10,
   },
   // 必要に応じて、他のスタイルもここに追加できます
 });
