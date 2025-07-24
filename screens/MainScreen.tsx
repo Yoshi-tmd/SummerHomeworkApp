@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import { database } from '../firebaseConfig'; // firebaseConfig.ts から database をインポート
 import { ref, onValue, set } from 'firebase/database'; // ref, onValue, set をインポート
+import { logoutUser } from '../auth';
 
 // こどもプロフィールの「型」を定義するお部屋（インターフェース）
 interface ChildProfile {
@@ -28,6 +29,7 @@ const dummyChildren: ChildProfile[] = [
   { id: 'child4', name: 'りょうせい' },
   { id: 'child5', name: 'ねね' },
 ];
+
 // テスト用のダミー日次タスクデータ
 const dummyDailyTasks: DailyTask[] = [
   { id: 'task1', name: '漢字練習', isCompleted: false },
@@ -36,9 +38,7 @@ const dummyDailyTasks: DailyTask[] = [
   { id: 'task4', name: '日記', isCompleted: false },
 ];
 
-
 // メイン画面コンポーネント
-// Propsとしてnavigation, selectedDate, currentChildを受け取る
 function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, dummyChildren }: any) {
   // 日次タスクのリストとその完了状態を管理するstate
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(dummyDailyTasks);
@@ -176,22 +176,35 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
             style={styles.taskItem}
             onPress={() => toggleTaskCompletion(task.id)}
           >
-            <Text
-              style={[
-                styles.taskName,
-                task.isCompleted && styles.completedTaskName,
-              ]}
+          <Text
+            style={[
+              styles.taskName,
+              task.isCompleted && styles.completedTaskName,
+            ]}
             >
-              {task.name}
-            </Text>
+            {task.name}
+          </Text>
             {task.isCompleted && <Text style={styles.checkMark}>✓</Text>}
           </TouchableOpacity>
         ))}
-      </View>
-
-      <Button
+      </View><Button
         title="カレンダー画面へ"
         onPress={() => navigation.navigate('Calendar')}
+      />
+
+      {/* ログアウトボタン */}
+      <View style={{ height: 20 }} />
+      <Button
+        title="ログアウト"
+        onPress={async () => {
+          try {
+            await logoutUser();
+            Alert.alert('ログアウト', 'ログアウトしました。');
+          } catch (error: any) {
+            Alert.alert('エラー', error.message || 'ログアウトに失敗しました。');
+          }
+        }}
+        color="red"
       />
     </View>
   );

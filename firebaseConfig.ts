@@ -15,7 +15,7 @@ const firebaseConfig = {
 };
 
 // Firebaseを初期化
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig); // app をエクスポートする
 
 // Realtime Databaseのインスタンスを取得
 export const database = getDatabase(app);

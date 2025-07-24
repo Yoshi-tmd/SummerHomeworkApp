@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { StyleSheet } from 'react-native'; // View, Button, Text, TouchableOpacity はもう不要
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
 import MainScreen from './screens/MainScreen';
 import CalendarScreen from './screens/CalendarScreen';
+import AuthScreen from './screens/AuthScreen';
+
+import { auth } from './auth';
+import { User, onAuthStateChanged } from 'firebase/auth';
 
 // こどもプロフィールの「型」を定義するお部屋（インターフェース）
 interface ChildProfile {
@@ -47,6 +51,20 @@ export default function App() {
   // 初期値として、ダミーデータの最初のこどものIDを設定
   const [currentChildId, setCurrentChildId] = useState<string>(dummyChildren[0].id);
 
+  const [user, setUser] = useState<User | null>(null); // ユーザー情報を保持するstate
+  const [loadingAuth, setLoadingAuth] = useState(true); // 認証状態の初期ロードを示すstate
+
+  // 認証状態の変更を監視するuseEffect
+  useEffect(() => {
+      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+          setUser(currentUser);
+          setLoadingAuth(false); // 認証状態のロードが完了
+      });
+
+      // クリーンアップ関数
+      return () => unsubscribe();
+  }, []);
+
   // 現在選択されているこどものプロフィールを見つける
   const currentChild = dummyChildren.find(
     (child) => child.id === currentChildId
@@ -61,32 +79,47 @@ export default function App() {
     setCurrentChildId(dummyChildren[nextIndex].id);
   };
 
+  if (loadingAuth) {
+      // 認証状態の確認中はローディングインジケータを表示
+      return (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#0000ff" />
+          </View>
+      );
+  }
+
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Main">
-        <Stack.Screen name="Main">
-          {(props) => (
-            <MainScreen
-              {...props}
-              selectedDate={selectedDate}
-              currentChild={currentChild}
-              setCurrentChildId={goToNextChild} // ★関数を渡すように修正
-              dummyChildren={dummyChildren} // ★dummyChildren を MainScreen に渡す
-            />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name="Calendar">
-          {(props) => (
-            <CalendarScreen
-              {...props}
-              selectedDate={selectedDate}
-              setSelectedDate={setSelectedDate}
-              currentChild={currentChild} // ★currentChild を渡す
-              setCurrentChildId={goToNextChild} // ★setCurrentChildId を渡す
-              dummyChildren={dummyChildren} // ★dummyChildren を渡す
-            />
-          )}
-        </Stack.Screen>
+      <Stack.Navigator initialRouteName={user ? "Main" : "Auth"}>
+        {user ? (
+          <React.Fragment>
+            <Stack.Screen name="Main" options={{ headerShown: false }}>
+              {(props) => (
+                <MainScreen
+                  {...props}
+                  selectedDate={selectedDate}
+                  currentChild={currentChild}
+                  setCurrentChildId={goToNextChild}
+                  dummyChildren={dummyChildren}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="Calendar" options={{ headerShown: false }}>
+              {(props) => (
+                <CalendarScreen
+                  {...props}
+                  selectedDate={selectedDate}
+                  setSelectedDate={setSelectedDate}
+                  currentChild={currentChild}
+                  setCurrentChildId={goToNextChild}
+                  dummyChildren={dummyChildren}
+                />
+              )}
+            </Stack.Screen>
+          </React.Fragment>
+          ) : (
+            <Stack.Screen name="Auth" component={AuthScreen} options={{ headerShown: false }} /> // ヘッダーを非表示
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
