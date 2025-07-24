@@ -81,6 +81,9 @@ export default function App() {
               {...props}
               selectedDate={selectedDate}
               setSelectedDate={setSelectedDate}
+              currentChild={currentChild} // ★currentChild を渡す
+              setCurrentChildId={goToNextChild} // ★setCurrentChildId を渡す
+              dummyChildren={dummyChildren} // ★dummyChildren を渡す
             />
           )}
         </Stack.Screen>
