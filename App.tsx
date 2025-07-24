@@ -1,7 +1,10 @@
-import React, { useState } from 'react'; // useState をインポート
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+
+import { database } from './firebaseConfig'; // firebaseConfig.ts から database をインポート
+import { ref, onValue, set } from 'firebase/database'; // ref, onValue, set をインポート
 
 // こどもプロフィールの「型」を定義するお部屋（インターフェース）
 interface ChildProfile {
@@ -42,13 +45,69 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId 
   // 日次タスクのリストとその完了状態を管理するstate
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(dummyDailyTasks);
   
+  // ★useEffect を使ってFirebaseからデータを読み込む
+  useEffect(() => {
+    if (!currentChild) return; // currentChild がない場合は何もしない
+
+    // Firebase Realtime Database の参照パスを定義
+    // 例: /children/child1/tasks
+    const tasksRef = ref(database, `children/${currentChild.id}/tasks`);
+
+    // データの変更を監視
+    const unsubscribe = onValue(tasksRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        // Firebaseから読み込んだデータをDailyTask[]の形式に変換
+        const loadedTasks: DailyTask[] = Object.keys(data).map(key => ({
+          id: key,
+          name: data[key].name,
+          isCompleted: data[key].isCompleted || false, // isCompleted がない場合はfalse
+        }));
+        setDailyTasks(loadedTasks);
+      } else {
+        setDailyTasks(dummyDailyTasks);
+        if (currentChild) {
+          saveTasksToFirebase(dummyDailyTasks, currentChild.id); // ★この行を追加
+        }
+      }
+    });
+
+    // コンポーネントがアンマウントされるときに監視を解除
+    return () => {
+      unsubscribe();
+    };
+  }, [currentChild]); // currentChild が変更されたときに再実行
+
   // タスクの完了状態を切り替える関数
   const toggleTaskCompletion = (taskId: string) => {
-    setDailyTasks((prevTasks) =>
-      prevTasks.map((task) =>
+  setDailyTasks((prevTasks) => {
+      const updatedTasks = prevTasks.map((task) =>
         task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task
-      )
-    );
+      );
+      // ★Firebaseに保存する
+      if (currentChild) {
+        saveTasksToFirebase(updatedTasks, currentChild.id);
+      }
+      return updatedTasks;
+    });
+  };
+
+  // ★Firebaseにタスクデータを保存する関数
+const saveTasksToFirebase = (tasks: DailyTask[], childId: string) => {
+  const tasksData: { [key: string]: { name: string; isCompleted: boolean } } = {};
+  tasks.forEach(task => {
+    tasksData[task.id] = { name: task.name, isCompleted: task.isCompleted };
+  });
+  // Firebase Realtime Database の参照パスを定義
+  // 例: /children/child1/tasks
+  const tasksRef = ref(database, `children/${childId}/tasks`);
+  set(tasksRef, tasksData)
+    .then(() => {
+      console.log('Tasks saved to Firebase successfully!');
+    })
+    .catch((error) => {
+      console.error('Error saving tasks to Firebase:', error);
+    });
   };
 
   // 曜日名を取得するヘルパー関数
