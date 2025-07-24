@@ -75,7 +75,15 @@ export default function App() {
             />
           )}
         </Stack.Screen>
-        <Stack.Screen name="Calendar" component={CalendarScreen} />
+        <Stack.Screen name="Calendar">
+          {(props) => (
+            <CalendarScreen
+              {...props}
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+            />
+          )}
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );

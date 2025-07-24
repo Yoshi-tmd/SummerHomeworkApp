@@ -47,34 +47,44 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
   useEffect(() => {
     if (!currentChild) return; // currentChild がない場合は何もしない
 
+    // 日付を 'YYYY-MM-DD' 形式にフォーマットするヘルパー関数
+    const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const formattedDate = formatDate(selectedDate); // ★選択された日付をフォーマット
+
     // Firebase Realtime Database の参照パスを定義
     // 例: /children/child1/tasks
-    const tasksRef = ref(database, `children/${currentChild.id}/tasks`);
+    const tasksRef = ref(database, `children/${currentChild.id}/${formattedDate}/tasks`);
 
     // データの変更を監視
     const unsubscribe = onValue(tasksRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        // Firebaseから読み込んだデータをDailyTask[]の形式に変換
-        const loadedTasks: DailyTask[] = Object.keys(data).map(key => ({
-          id: key,
-          name: data[key].name,
-          isCompleted: data[key].isCompleted || false, // isCompleted がない場合はfalse
-        }));
-        setDailyTasks(loadedTasks);
-      } else {
-        setDailyTasks(dummyDailyTasks);
-        if (currentChild) {
-          saveTasksToFirebase(dummyDailyTasks, currentChild.id); // ★この行を追加
+        const data = snapshot.val();
+        if (data) {
+            // Firebaseから読み込んだデータをDailyTask[]の形式に変換
+            const loadedTasks: DailyTask[] = Object.keys(data).map(key => ({
+                id: key,
+                name: data[key].name,
+                isCompleted: data[key].isCompleted || false, // isCompleted がない場合はfalse
+            }));
+            setDailyTasks(loadedTasks);
+        } else {
+            setDailyTasks(dummyDailyTasks);
+            if (currentChild) {
+                saveTasksToFirebase(dummyDailyTasks, currentChild.id, formattedDate);
+            }
         }
-      }
     });
 
     // コンポーネントがアンマウントされるときに監視を解除
     return () => {
       unsubscribe();
     };
-  }, [currentChild]); // currentChild が変更されたときに再実行
+  }, [currentChild, selectedDate]); // currentChild もしくは selectedDate が変更されたときに再実行
 
   // タスクの完了状態を切り替える関数
   const toggleTaskCompletion = (taskId: string) => {
@@ -84,27 +94,35 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
       );
       // ★Firebaseに保存する
       if (currentChild) {
-        saveTasksToFirebase(updatedTasks, currentChild.id);
+        // 日付を 'YYYY-MM-DD' 形式にフォーマットするヘルパー関数 (MainScreen内に定義済み)
+        const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+        }
+        const formattedDate = formatDate(selectedDate); // ★selectedDate をフォーマットして渡す
+        saveTasksToFirebase(updatedTasks, currentChild.id, formattedDate); // ★formattedDate を渡す
       }
       return updatedTasks;
     });
   };
 
   // ★Firebaseにタスクデータを保存する関数
-  const saveTasksToFirebase = (tasks: DailyTask[], childId: string) => {
+  const saveTasksToFirebase = (tasks: DailyTask[], childId: string, date: string) => {
     const tasksData: { [key: string]: { name: string; isCompleted: boolean } } = {};
     tasks.forEach(task => {
-      tasksData[task.id] = { name: task.name, isCompleted: task.isCompleted };
+        tasksData[task.id] = { name: task.name, isCompleted: task.isCompleted };
     });
     // Firebase Realtime Database の参照パスを定義
-    // 例: /children/child1/tasks
-    const tasksRef = ref(database, `children/${childId}/tasks`);
+    // 例: /children/child1/2025-07-24/tasks
+    const tasksRef = ref(database, `children/${childId}/${date}/tasks`);
     set(tasksRef, tasksData)
     .then(() => {
-      console.log('Tasks saved to Firebase successfully!');
+        console.log('Tasks saved to Firebase successfully!');
     })
     .catch((error) => {
-      console.error('Error saving tasks to Firebase:', error);
+        console.error('Error saving tasks to Firebase:', error);
     });
   };
 
