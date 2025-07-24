@@ -22,6 +22,8 @@ const dummyChildren: ChildProfile[] = [
   { id: 'child1', name: 'たろう' },
   { id: 'child2', name: 'はなこ' },
   { id: 'child3', name: 'けんた' },
+  { id: 'child4', name: 'りょうせい' },
+  { id: 'child5', name: 'ねね' },
 ];
 // テスト用のダミー日次タスクデータ
 const dummyDailyTasks: DailyTask[] = [
