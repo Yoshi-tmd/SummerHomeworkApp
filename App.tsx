@@ -32,6 +32,7 @@ const dummyChildren: ChildProfile[] = [
   { id: 'child4', name: 'りょうせい' },
   { id: 'child5', name: 'ねね' },
 ];
+
 // テスト用のダミー日次タスクデータ
 const dummyDailyTasks: DailyTask[] = [
   { id: 'task1', name: '漢字練習', isCompleted: false },
@@ -49,7 +50,7 @@ export default function App() {
 
   // 現在選択されているこどものIDを管理するstate
   // 初期値として、ダミーデータの最初のこどものIDを設定
-  const [currentChildId, setCurrentChildId] = useState<string>(dummyChildren[0].id);
+  const [currentChildId, setCurrentChildId] = useState<string | null>(null); // ★初期値をnullに変更
 
   const [user, setUser] = useState<User | null>(null); // ユーザー情報を保持するstate
   const [loadingAuth, setLoadingAuth] = useState(true); // 認証状態の初期ロードを示すstate
@@ -58,6 +59,13 @@ export default function App() {
   useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
           setUser(currentUser);
+          if (currentUser && dummyChildren.length > 0) {
+            // ログイン時、かつダミーの子供がいる場合のみ最初の子供を設定
+            setCurrentChildId(dummyChildren[0].id);
+          } else if (!currentUser) {
+            // ログアウト時は子供の選択をクリア
+            setCurrentChildId(null);
+          }
           setLoadingAuth(false); // 認証状態のロードが完了
       });
 
@@ -70,8 +78,9 @@ export default function App() {
     (child) => child.id === currentChildId
   );
 
-  // ★「次のこどもへ」ボタンのロジックを App.tsx に移動
+  // 「次のこどもへ」ボタンのロジック
   const goToNextChild = () => {
+    if (!currentChildId) return; // 子供が選択されていない場合は何もしない
     const currentIndex = dummyChildren.findIndex(
       (child) => child.id === currentChild?.id
     );
@@ -101,6 +110,7 @@ export default function App() {
                   currentChild={currentChild}
                   setCurrentChildId={goToNextChild}
                   dummyChildren={dummyChildren}
+                  userId={user.uid}
                 />
               )}
             </Stack.Screen>
@@ -113,6 +123,7 @@ export default function App() {
                   currentChild={currentChild}
                   setCurrentChildId={goToNextChild}
                   dummyChildren={dummyChildren}
+                  userId={user.uid}
                 />
               )}
             </Stack.Screen>

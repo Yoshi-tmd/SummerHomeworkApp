@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity, Alert } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
 
 import { database } from '../firebaseConfig'; // firebaseConfig.ts から database をインポート
 import { ref, onValue, set } from 'firebase/database'; // ref, onValue, set をインポート
@@ -21,17 +19,8 @@ interface DailyTask {
   isCompleted: boolean;
 }
 
-// テスト用のダミーこどもデータ
-const dummyChildren: ChildProfile[] = [
-  { id: 'child1', name: 'たろう' },
-  { id: 'child2', name: 'はなこ' },
-  { id: 'child3', name: 'けんた' },
-  { id: 'child4', name: 'りょうせい' },
-  { id: 'child5', name: 'ねね' },
-];
-
 // テスト用のダミー日次タスクデータ
-const dummyDailyTasks: DailyTask[] = [
+const initialDummyDailyTasks: DailyTask[] = [
   { id: 'task1', name: '漢字練習', isCompleted: false },
   { id: 'task2', name: '計算ドリル', isCompleted: false },
   { id: 'task3', name: '音読', isCompleted: false },
@@ -39,13 +28,13 @@ const dummyDailyTasks: DailyTask[] = [
 ];
 
 // メイン画面コンポーネント
-function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, dummyChildren }: any) {
+function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, dummyChildren, userId }: any) {
   // 日次タスクのリストとその完了状態を管理するstate
-  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(dummyDailyTasks);
+  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(initialDummyDailyTasks);
   
-  // ★useEffect を使ってFirebaseからデータを読み込む
+  // useEffect を使ってFirebaseからデータを読み込む
   useEffect(() => {
-    if (!currentChild) return; // currentChild がない場合は何もしない
+    if (!currentChild || !userId) return; // currentChild がない場合は何もしない
 
     // 日付を 'YYYY-MM-DD' 形式にフォーマットするヘルパー関数
     const formatDate = (date: Date) => {
@@ -55,11 +44,11 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
         return `${year}-${month}-${day}`;
     };
 
-    const formattedDate = formatDate(selectedDate); // ★選択された日付をフォーマット
+    const formattedDate = formatDate(selectedDate); // 選択された日付をフォーマット
 
     // Firebase Realtime Database の参照パスを定義
-    // 例: /children/child1/tasks
-    const tasksRef = ref(database, `children/${currentChild.id}/${formattedDate}/tasks`);
+    // 例: /users/{userId}/children/{childId}/{date}/tasks
+    const tasksRef = ref(database, `users/${userId}/children/${currentChild.id}/${formattedDate}/tasks`);
 
     // データの変更を監視
     const unsubscribe = onValue(tasksRef, (snapshot) => {
@@ -73,9 +62,9 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
             }));
             setDailyTasks(loadedTasks);
         } else {
-            setDailyTasks(dummyDailyTasks);
+            setDailyTasks(initialDummyDailyTasks);
             if (currentChild) {
-                saveTasksToFirebase(dummyDailyTasks, currentChild.id, formattedDate);
+                saveTasksToFirebase(initialDummyDailyTasks, userId, currentChild.id, formattedDate);
             }
         }
     });
@@ -84,7 +73,7 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
     return () => {
       unsubscribe();
     };
-  }, [currentChild, selectedDate]); // currentChild もしくは selectedDate が変更されたときに再実行
+  }, [currentChild, selectedDate, userId]); // currentChild もしくは selectedDate ,userIdが変更されたときに再実行
 
   // タスクの完了状態を切り替える関数
   const toggleTaskCompletion = (taskId: string) => {
@@ -93,7 +82,7 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
         task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task
       );
       // ★Firebaseに保存する
-      if (currentChild) {
+      if (currentChild && userId) {
         // 日付を 'YYYY-MM-DD' 形式にフォーマットするヘルパー関数 (MainScreen内に定義済み)
         const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -101,22 +90,21 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
         const day = date.getDate().toString().padStart(2, '0');
         return `${year}-${month}-${day}`;
         }
-        const formattedDate = formatDate(selectedDate); // ★selectedDate をフォーマットして渡す
-        saveTasksToFirebase(updatedTasks, currentChild.id, formattedDate); // ★formattedDate を渡す
+        const formattedDate = formatDate(selectedDate); // selectedDate をフォーマットして渡す
+        saveTasksToFirebase(updatedTasks, userId, currentChild.id, formattedDate);
       }
       return updatedTasks;
     });
   };
 
-  // ★Firebaseにタスクデータを保存する関数
-  const saveTasksToFirebase = (tasks: DailyTask[], childId: string, date: string) => {
+  // Firebaseにタスクデータを保存する関数
+  const saveTasksToFirebase = (tasks: DailyTask[], userId: string, childId: string, date: string) => {
     const tasksData: { [key: string]: { name: string; isCompleted: boolean } } = {};
     tasks.forEach(task => {
         tasksData[task.id] = { name: task.name, isCompleted: task.isCompleted };
     });
     // Firebase Realtime Database の参照パスを定義
-    // 例: /children/child1/2025-07-24/tasks
-    const tasksRef = ref(database, `children/${childId}/${date}/tasks`);
+    const tasksRef = ref(database, `users/${userId}/children/${childId}/${date}/tasks`);
     set(tasksRef, tasksData)
     .then(() => {
         console.log('Tasks saved to Firebase successfully!');

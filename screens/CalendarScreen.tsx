@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, Button } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 // カレンダー画面コンポーネント
-function CalendarScreen({ navigation, selectedDate, setSelectedDate, currentChild, setCurrentChildId, dummyChildren }: any) {
+function CalendarScreen({ navigation, selectedDate, setSelectedDate, currentChild, setCurrentChildId, dummyChildren, userId }: any) {
     // カレンダーで選択された日付を管理するローカルstate
     // initialDate は selectedDate (App.tsxから渡される日付) を使用
     const [currentCalendarSelectedDate, setCurrentCalendarSelectedDate] = useState(
