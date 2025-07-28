@@ -28,7 +28,7 @@ const initialDummyDailyTasks: DailyTask[] = [
 ];
 
 // メイン画面コンポーネント
-function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, dummyChildren, userId }: any) {
+function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, userId }: any) {
   // 日次タスクのリストとその完了状態を管理するstate
   const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(initialDummyDailyTasks);
   
@@ -178,6 +178,14 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
       </View><Button
         title="カレンダー画面へ"
         onPress={() => navigation.navigate('Calendar')}
+      />
+
+      {/* ★追加：家族・子ども管理画面へのボタン */}
+      <View style={{ height: 20 }} /> {/* スペース用 */}
+      <Button
+        title="家族・子ども管理"
+        onPress={() => navigation.navigate('FamilyManagement')}
+        color="#007bff" // 青系
       />
 
       {/* ログアウトボタン */}
