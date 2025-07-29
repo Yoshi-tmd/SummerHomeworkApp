@@ -1,265 +1,359 @@
+// screens/MainScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, Button, TouchableOpacity, Alert, Platform, ActivityIndicator, FlatList, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // SafeAreaViewをインポート
 
-import { database } from '../firebaseConfig'; // firebaseConfig.ts から database をインポート
-import { ref, onValue, set } from 'firebase/database'; // ref, onValue, set をインポート
-import { logoutUser } from '../auth';
+import { database } from '../firebaseConfig'; // Firebase Realtime Database
+import { ref, onValue, set } from 'firebase/database';
+import { auth } from '../firebaseConfig'; // Firebase Authのインスタンス
+import { signOut } from 'firebase/auth'; // ログアウト関数
 
-// こどもプロフィールの「型」を定義するお部屋（インターフェース）
-interface ChildProfile {
-  id: string; // こどもを識別するための一意のID
-  name: string; // こどもの名前
-  currentTaskId?: string; // 現在フォーカスしているタスクのID (任意)
-}
-
-// 毎日やる宿題の「種類」を定義するお部屋（インターフェース）
-interface DailyTask {
-  id: string;
-  name: string;
-  isCompleted: boolean;
-}
-
-// テスト用のダミー日次タスクデータ
-const initialDummyDailyTasks: DailyTask[] = [
-  { id: 'task1', name: '漢字練習', isCompleted: false },
-  { id: 'task2', name: '計算ドリル', isCompleted: false },
-  { id: 'task3', name: '音読', isCompleted: false },
-  { id: 'task4', name: '日記', isCompleted: false },
-];
+// types.ts から必要な型をインポート (path.tsからではない点に注意)
+import { ChildProfile, DailyTask, DeadlineTask, TaskStatus, TaskType } from '../types';
+import { format } from 'date-fns'; // date-fnsのformat関数をインポート
 
 // メイン画面コンポーネント
 function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, userId }: any) {
-  // 日次タスクのリストとその完了状態を管理するstate
-  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(initialDummyDailyTasks);
-  
-  // useEffect を使ってFirebaseからデータを読み込む
+  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>([]); // 初期値を空にする
+  const [deadlineTasks, setDeadlineTasks] = useState<DeadlineTask[]>([]); // 期限付きタスク用
+  const [loadingTasks, setLoadingTasks] = useState(true); // ローディング状態を追加
+
+  // Firebaseから日次タスクと期限付きタスクを読み込む
   useEffect(() => {
-    if (!currentChild || !userId) return; // currentChild がない場合は何もしない
+    if (!userId || !currentChild) {
+      // ユーザーIDまたは子どもの選択がない場合はタスクをクリアし、ローディングを終了
+      setDailyTasks([]);
+      setDeadlineTasks([]);
+      setLoadingTasks(false);
+      return;
+    }
 
-    // 日付を 'YYYY-MM-DD' 形式にフォーマットするヘルパー関数
-    const formatDate = (date: Date) => {
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    };
+    setLoadingTasks(true); // データ読み込み開始時にローディングをtrueに
 
-    const formattedDate = formatDate(selectedDate); // 選択された日付をフォーマット
+    // 日次タスクの参照パス (HomeworkManagementScreen.tsxとパスを統一)
+    const dailyTasksRef = ref(database, `users/${userId}/children/${currentChild.id}/dailyTasks`);
+    // 期限付きタスクの参照パス (HomeworkManagementScreen.tsxとパスを統一)
+    const deadlineTasksRef = ref(database, `users/${userId}/children/${currentChild.id}/deadlineTasks`);
 
-    // Firebase Realtime Database の参照パスを定義
-    // 例: /users/{userId}/children/{childId}/{date}/tasks
-    const tasksRef = ref(database, `users/${userId}/children/${currentChild.id}/${formattedDate}/tasks`);
-
-    // データの変更を監視
-    const unsubscribe = onValue(tasksRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-            // Firebaseから読み込んだデータをDailyTask[]の形式に変換
-            const loadedTasks: DailyTask[] = Object.keys(data).map(key => ({
-                id: key,
-                name: data[key].name,
-                isCompleted: data[key].isCompleted || false, // isCompleted がない場合はfalse
-            }));
-            setDailyTasks(loadedTasks);
-        } else {
-            setDailyTasks(initialDummyDailyTasks);
-            if (currentChild) {
-                saveTasksToFirebase(initialDummyDailyTasks, userId, currentChild.id, formattedDate);
-            }
-        }
+    // 日次タスクの監視
+    const unsubscribeDaily = onValue(dailyTasksRef, (snapshot) => {
+      const data = snapshot.val();
+      const loadedTasks: DailyTask[] = [];
+      if (data) {
+        Object.keys(data).forEach(key => {
+          loadedTasks.push({ id: key, ...data[key] });
+        });
+      }
+      setDailyTasks(loadedTasks);
     });
+
+    // 期限付きタスクの監視
+    const unsubscribeDeadline = onValue(deadlineTasksRef, (snapshot) => {
+        const data = snapshot.val();
+        const loadedTasks: DeadlineTask[] = [];
+        if (data) {
+          Object.keys(data).forEach(key => {
+            loadedTasks.push({ id: key, ...data[key] });
+          });
+        }
+        setDeadlineTasks(loadedTasks);
+        setLoadingTasks(false); // 全てのデータ読み込み完了時にローディングをfalseに
+      });
 
     // コンポーネントがアンマウントされるときに監視を解除
     return () => {
-      unsubscribe();
+      unsubscribeDaily();
+      unsubscribeDeadline();
     };
-  }, [currentChild, selectedDate, userId]); // currentChild もしくは selectedDate ,userIdが変更されたときに再実行
+  }, [userId, currentChild]); // userId または currentChild が変更されたら再読み込み
 
-  // タスクの完了状態を切り替える関数
-  const toggleTaskCompletion = (taskId: string) => {
-  setDailyTasks((prevTasks) => {
-      const updatedTasks = prevTasks.map((task) =>
-        task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task
-      );
-      // ★Firebaseに保存する
-      if (currentChild && userId) {
-        // 日付を 'YYYY-MM-DD' 形式にフォーマットするヘルパー関数 (MainScreen内に定義済み)
-        const formatDate = (date: Date) => {
-        const year = date.getFullYear();
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        return `${year}-${month}-${day}`;
-        }
-        const formattedDate = formatDate(selectedDate); // selectedDate をフォーマットして渡す
-        saveTasksToFirebase(updatedTasks, userId, currentChild.id, formattedDate);
-      }
-      return updatedTasks;
-    });
-  };
+  // タスクの完了状態を切り替える関数（Firebaseと連携）
+  const toggleTaskStatus = async (task: DailyTask | DeadlineTask) => {
+    if (!userId || !currentChild) return;
 
-  // Firebaseにタスクデータを保存する関数
-  const saveTasksToFirebase = (tasks: DailyTask[], userId: string, childId: string, date: string) => {
-    const tasksData: { [key: string]: { name: string; isCompleted: boolean } } = {};
-    tasks.forEach(task => {
-        tasksData[task.id] = { name: task.name, isCompleted: task.isCompleted };
-    });
-    // Firebase Realtime Database の参照パスを定義
-    const tasksRef = ref(database, `users/${userId}/children/${childId}/${date}/tasks`);
-    set(tasksRef, tasksData)
-    .then(() => {
-        console.log('Tasks saved to Firebase successfully!');
-    })
-    .catch((error) => {
-        console.error('Error saving tasks to Firebase:', error);
-    });
-  };
+    // 現在のステータスが 'completed' なら 'notStarted' に、そうでなければ 'completed' にする
+    const newStatus: TaskStatus = task.status === 'completed' ? 'notStarted' : 'completed';
+    const taskPath = `users/${userId}/children/${currentChild.id}/${task.type}Tasks/${task.id}`;
+    const taskRef = ref(database, taskPath);
 
-  // 曜日名を取得するヘルパー関数
-  const getDayName = (day: number) => {
-    const days = ['日', '月', '火', '水', '木', '金', '土'];
-    return days[day];
-  };
-
-  // 曜日によって色を変えるヘルパー関数
-  const getDayColor = (day: number) => {
-    switch (day) {
-      case 0: // 日曜日
-        return 'red';
-      case 6: // 土曜日
-        return 'blue';
-      default: // 平日
-        return 'black';
+    try {
+      await set(taskRef, { ...task, status: newStatus, updatedAt: new Date().toISOString() });
+    } catch (error: any) {
+      Alert.alert('エラー', 'タスクのステータス更新に失敗しました: ' + error.message);
+      console.error('Error updating task status:', error);
     }
   };
 
+  // ログアウト処理
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Firebase AuthのsignOut関数を直接使用
+      Alert.alert('ログアウト', 'ログアウトしました。');
+    } catch (error: any) {
+      console.error('ログアウトエラー:', error);
+      Alert.alert('エラー', error.message || 'ログアウトに失敗しました。');
+    }
+  };
+
+  // ローディング中の表示
+  if (loadingTasks) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text>タスクを読み込み中...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      {/* 現在のこどもの名前を表示 */}
-      {currentChild && (
-        <Text style={styles.childName}>
-          {currentChild.name} の宿題
-        </Text>
-      )}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        <View style={styles.container}>
+          <Text style={styles.title}>メイン画面</Text> {/* Textで囲むことを徹底 */}
 
-      {/* 次のこどもへ切り替えるボタン */}
-      <Button
-        title="次のこどもへ"
-        onPress={() => {
-            // setCurrentChildId を直接呼び出す
-            setCurrentChildId();
-        }}
-      />
+          <Text style={styles.dateText}>{format(selectedDate, 'yyyy年MM月dd日 (E)')}</Text>
 
-      {/* 日付の表示 */}
-      <Text style={[styles.dateText, { color: getDayColor(selectedDate.getDay()) }]}>
-        {`${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 (${getDayName(selectedDate.getDay())})`}
-      </Text>
+          {/* 現在選択中のこども表示 */}
+          {currentChild ? (
+            <View style={styles.childInfoContainer}>
+              <Text style={styles.childName}>対象のこども: {currentChild.name}</Text>
+              {/* 子ども切り替えボタン */}
+              <TouchableOpacity onPress={() => setCurrentChildId()} style={styles.changeChildButton}>
+                <Text style={styles.changeChildButtonText}>切り替え</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.noChildContainer}>
+              <Text style={styles.noChildText}>こどもが選択されていません。</Text>
+              <Button
+                title="こどもを追加/選択"
+                onPress={() => navigation.navigate('FamilyManagement')}
+              />
+            </View>
+          )}
 
-      <Text style={styles.title}>メイン画面（日次進捗）</Text>
+          {currentChild && ( // currentChild が選択されている場合のみタスクを表示
+            <>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>日次タスク</Text>
+                {dailyTasks.length === 0 ? (
+                  <Text style={styles.noTasksMessage}>日次タスクがありません。</Text>
+                ) : (
+                  <FlatList
+                    data={dailyTasks}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[styles.taskItem, item.status === 'completed' ? styles.completedTask : null]}
+                        onPress={() => toggleTaskStatus(item)}
+                      >
+                        <Text style={styles.taskNameStyle}>{item.name}</Text>
+                        {item.description && <Text style={styles.taskDescriptionStyle}>{item.description}</Text>}
+                        <Text style={styles.taskStatusStyle}>
+                          {item.status === 'completed' ? '完了' : '未完了'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    contentContainerStyle={styles.flatListContent}
+                    scrollEnabled={false}
+                  />
+                )}
+              </View>
 
-      <View style={styles.taskList}>
-        {dailyTasks.map((task) => (
-          <TouchableOpacity
-            key={task.id}
-            style={styles.taskItem}
-            onPress={() => toggleTaskCompletion(task.id)}
-          >
-          <Text
-            style={[
-              styles.taskName,
-              task.isCompleted && styles.completedTaskName,
-            ]}
-            >
-            {task.name}
-          </Text>
-            {task.isCompleted && <Text style={styles.checkMark}>✓</Text>}
-          </TouchableOpacity>
-        ))}
-      </View><Button
-        title="カレンダー画面へ"
-        onPress={() => navigation.navigate('Calendar')}
-      />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>期限付きタスク</Text>
+                {deadlineTasks.length === 0 ? (
+                  <Text style={styles.noTasksMessage}>期限付きタスクがありません。</Text>
+                ) : (
+                  <FlatList
+                    data={deadlineTasks}
+                    keyExtractor={(item) => item.id}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        style={[styles.taskItem, item.status === 'completed' ? styles.completedTask : null]}
+                        onPress={() => toggleTaskStatus(item)}
+                      >
+                        <Text style={styles.taskNameStyle}>{item.name}</Text>
+                        {item.description && <Text style={styles.taskDescriptionStyle}>{item.description}</Text>}
+                        <Text style={styles.taskDeadlineStyle}>
+                          期限: {format((item as DeadlineTask).deadline, 'yyyy/MM/dd HH:mm')}
+                        </Text>
+                        <Text style={styles.taskStatusStyle}>
+                          {item.status === 'completed' ? '完了' : '未完了'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    contentContainerStyle={styles.flatListContent}
+                    scrollEnabled={false}
+                  />
+                )}
+              </View>
+            </>
+          )}
 
-      {/* ★追加：家族・子ども管理画面へのボタン */}
-      <View style={{ height: 20 }} /> {/* スペース用 */}
-      <Button
-        title="家族・子ども管理"
-        onPress={() => navigation.navigate('FamilyManagement')}
-        color="#007bff" // 青系
-      />
+          <View style={styles.buttonContainer}>
+            <Button
+              title="カレンダー画面へ"
+              onPress={() => navigation.navigate('Calendar')}
+            />
 
-      {/* ログアウトボタン */}
-      <View style={{ height: 20 }} />
-      <Button
-        title="ログアウト"
-        onPress={async () => {
-          try {
-            await logoutUser();
-            Alert.alert('ログアウト', 'ログアウトしました。');
-          } catch (error: any) {
-            Alert.alert('エラー', error.message || 'ログアウトに失敗しました。');
-          }
-        }}
-        color="red"
-      />
-    </View>
+            <View style={{ height: 20 }} />
+            <Button
+              title="宿題管理"
+              onPress={() => {
+                if (!currentChild) {
+                  Alert.alert('エラー', '宿題管理画面に移動するには、まずこどもを選択してください。');
+                  return;
+                }
+                navigation.navigate('HomeworkManagement');
+              }}
+              color="#FF5733"
+            />
+
+            <View style={{ height: 20 }} />
+            <Button
+              title="家族・子ども管理"
+              onPress={() => navigation.navigate('FamilyManagement')}
+              color="#007bff"
+            />
+
+            <View style={{ height: 20 }} />
+            <Button
+              title="ログアウト"
+              onPress={handleLogout}
+              color="red"
+            />
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  scrollViewContent: { // ★ScrollView の中身全体に適用するスタイル
+    flexGrow: 1, // コンテンツが画面の高さより小さい場合でも、ScrollView が最低限の高さを持つようにする
+    alignItems: 'center', // コンテンツを中央寄せに保つ
+    paddingHorizontal: 20, // 左右のパディング
+    paddingTop: Platform.OS === 'android' ? 20 : 0, // Androidの上部パディングを維持
+    paddingBottom: 20, // 下部にも少しパディングを追加
+  },
+  container: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  childName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  dateText: {
-    fontSize: 20,
-    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 20 : 0,
+    width: '100%',
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 20,
+    marginTop: 20,
   },
-  taskList: {
-    width: '80%',
+  dateText: {
+    fontSize: 20,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
   },
-  taskItem: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  childInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 20,
   },
-  taskName: {
-    fontSize: 18,
-    marginLeft: 10,
-    flex: 1,
-  },
-  completedTaskName: {
-    textDecorationLine: 'line-through',
-    color: '#888',
-  },
-  checkMark: {
-    fontSize: 20,
-    color: 'green',
+  childName: {
+    fontSize: 22,
     fontWeight: 'bold',
-    marginLeft: 10,
+    color: '#333',
+    marginRight: 10,
+  },
+  changeChildButton: {
+    backgroundColor: '#6c757d',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
+  changeChildButtonText: {
+    color: 'white',
+    fontSize: 14,
+  },
+  noChildContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  noChildText: {
+    fontSize: 18,
+    color: 'red',
+    marginBottom: 10,
+  },
+  section: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  noTasksMessage: {
+    fontSize: 16,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  taskItem: {
+    backgroundColor: '#f9f9f9',
+    padding: 15,
+    marginVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    width: '100%',
+  },
+  completedTask: {
+    backgroundColor: '#e0ffe0',
+    borderColor: '#aaffaa',
+    opacity: 0.7,
+  },
+  taskNameStyle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  taskDescriptionStyle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+  },
+  taskDeadlineStyle: {
+    fontSize: 14,
+    color: '#dc3545',
+    marginTop: 5,
+    fontWeight: 'bold',
+  },
+  taskStatusStyle: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 5,
+    alignSelf: 'flex-end',
+  },
+  flatListContent: {
+    paddingBottom: 10,
+  },
+  buttonContainer: {
+    width: '100%',
+    marginTop: 20,
+    marginBottom: 20, // 下部のパディング
+  },
+  loadingContainer: { // ローディング表示用スタイル
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
   },
 });
 
-export default MainScreen; // MainScreen をエクスポート
-
+export default MainScreen;

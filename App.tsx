@@ -7,42 +7,15 @@ import MainScreen from './screens/MainScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import AuthScreen from './screens/AuthScreen';
 import FamilyManagementScreen from './screens/FamilyManagementScreen';
+import HomeworkManagementScreen from './screens/HomeworkManagementScreen';
 
 import { auth } from './auth';
 import { database } from './firebaseConfig';
 import { ref, onValue } from 'firebase/database';
 import { User, onAuthStateChanged } from 'firebase/auth';
 
-// こどもプロフィールの「型」を定義するお部屋（インターフェース）
-interface ChildProfile {
-  id: string; // こどもを識別するための一意のID
-  name: string; // こどもの名前
-  currentTaskId?: string; // 現在フォーカスしているタスクのID (任意)
-}
+import { ChildProfile } from './types';
 
-// 毎日やる宿題の「種類」を定義するお部屋（インターフェース）
-interface DailyTask {
-  id: string;
-  name: string;
-  isCompleted: boolean;
-}
-
-// こどもプロフィールの「型」を定義するお部屋（インターフェース）
-interface ChildProfile {
-  id: string; // こどもを識別するための一意のID
-  name: string; // こどもの名前
-  // FamilyManagementScreen と整合性を持たせる
-  age?: number;
-  grade?: string;
-}
-
-// テスト用のダミー日次タスクデータ
-const dummyDailyTasks: DailyTask[] = [
-  { id: 'task1', name: '漢字練習', isCompleted: false },
-  { id: 'task2', name: '計算ドリル', isCompleted: false },
-  { id: 'task3', name: '音読', isCompleted: false },
-  { id: 'task4', name: '日記', isCompleted: false },
-];
 
 // スタックナビゲーターを作成
 const Stack = createStackNavigator();
@@ -62,7 +35,7 @@ export default function App() {
 
   // 認証状態の変更を監視するuseEffect
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser: User | null) => {
       setUser(currentUser);
       setLoadingAuth(false);
       // ログイン状態が変わった時にこども選択をリセット
@@ -188,6 +161,15 @@ export default function App() {
                 <FamilyManagementScreen
                   {...props}
                   userId={user.uid}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="HomeworkManagement" options={{ headerShown: false }}>
+              {(props) => (
+                <HomeworkManagementScreen
+                  {...props}
+                  userId={user.uid}
+                  currentChild={currentChild} // 現在選択中のこどもを渡す
                 />
               )}
             </Stack.Screen>

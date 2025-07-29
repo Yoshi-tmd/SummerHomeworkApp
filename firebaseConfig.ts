@@ -1,5 +1,6 @@
 // firebaseConfig.ts
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database'; // Realtime Database を使うのでこれをインポート
 
 // あなたのFirebaseプロジェクトの構成をここに追加します
@@ -16,6 +17,8 @@ const firebaseConfig = {
 
 // Firebaseを初期化
 export const app = initializeApp(firebaseConfig); // app をエクスポートする
+
+export const auth = getAuth(app);
 
 // Realtime Databaseのインスタンスを取得
 export const database = getDatabase(app);

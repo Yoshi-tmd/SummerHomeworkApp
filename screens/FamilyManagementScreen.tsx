@@ -6,14 +6,8 @@ import { ref, onValue, set, remove } from 'firebase/database';
 import 'react-native-get-random-values'; // UUID生成のためのポリフィル
 import { v4 as uuidv4 } from 'uuid'; // ユニークID生成ライブラリ
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ChildProfile } from '../types';
 
-// ChildProfile インターフェース（App.tsxと同じものを定義、または共通ファイルに移動することも検討）
-interface ChildProfile {
-  id: string;
-  name: string;
-  age?: number;
-  grade?: string;
-}
 
 function FamilyManagementScreen({ navigation, userId }: any) {
   const [children, setChildren] = useState<ChildProfile[]>([]);
