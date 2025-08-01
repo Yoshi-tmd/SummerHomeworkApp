@@ -6,16 +6,18 @@ import { ref, onValue, set, remove } from 'firebase/database';
 import 'react-native-get-random-values'; // UUID生成のためのポリフィル
 import { v4 as uuidv4 } from 'uuid'; // ユニークID生成ライブラリ
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { format } from 'date-fns';
+
 import { ChildProfile } from '../types';
 
 
 function FamilyManagementScreen({ navigation, userId }: any) {
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [newChildName, setNewChildName] = useState('');
+  const [newChildBirthday, setNewChildBirthday] = useState(new Date());
   const [editingChild, setEditingChild] = useState<ChildProfile | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);    // 入力フォームの表示状態を管理するstate
-
-
 
   // Firebaseから子どもデータを読み込む
   useEffect(() => {
@@ -28,9 +30,16 @@ function FamilyManagementScreen({ navigation, userId }: any) {
         const loadedChildren: ChildProfile[] = Object.keys(data).map(key => ({
           id: key,
           name: data[key].name,
+          birthday: data[key].birthday,
           age: data[key].age,
           grade: data[key].grade,
         }));
+        // 誕生日順にソート
+        loadedChildren.sort((a, b) => {
+          if (!a.birthday) return 1; // 誕生日がない場合は後ろに
+          if (!b.birthday) return -1; // 誕生日がない場合は後ろに
+          return new Date(a.birthday).getTime() - new Date(b.birthday).getTime();
+        });
         setChildren(loadedChildren);
       } else {
         setChildren([]); // データがない場合は空の配列
@@ -75,6 +84,7 @@ function FamilyManagementScreen({ navigation, userId }: any) {
         // 元の `editingChild` から名前以外のプロパティを引き継ぎつつ、更新する
         const updatedChildData = {
             name: newChildName,
+            birthday: newChildBirthday.toISOString(), // ★誕生日を更新
             ...(editingChild.age !== undefined && { age: editingChild.age }), // ageがundefinedでなければ含める
             ...(editingChild.grade !== undefined && { grade: editingChild.grade }), // gradeがundefinedでなければ含める
             // 必要に応じて他のプロパティも同様に処理
@@ -87,7 +97,7 @@ function FamilyManagementScreen({ navigation, userId }: any) {
         // 追加処理
         const newId = uuidv4(); // 新しいユニークIDを生成
         const childRef = ref(database, `users/${userId}/children/${newId}`);
-        await set(childRef, { id: newId, name: newChildName }); // idも保存する
+        await set(childRef, { id: newId, name: newChildName, birthday: newChildBirthday.toISOString() }); // idも保存する
         Alert.alert('成功', '新しいこどもを追加しました。');
       }
       setNewChildName(''); // 入力フィールドをクリア
@@ -102,6 +112,9 @@ function FamilyManagementScreen({ navigation, userId }: any) {
   const startEditing = (child: ChildProfile) => {
     setEditingChild(child);
     setNewChildName(child.name);
+    if (child.birthday) { // ★誕生日が保存されていればセット
+      setNewChildBirthday(new Date(child.birthday));
+    }
     setIsFormVisible(true); // フォームを表示
   };
 
@@ -109,7 +122,24 @@ function FamilyManagementScreen({ navigation, userId }: any) {
   const cancelForm = () => {
     setEditingChild(null);
     setNewChildName('');
+    setNewChildBirthday(new Date());
     setIsFormVisible(false);
+  };
+
+  // ピッカーを開く新しい関数
+  const showDatePicker = () => {
+    DateTimePickerAndroid.open({
+      value: newChildBirthday,
+      onChange: (event, selectedDate) => {
+        if (event.type === 'set' && selectedDate) {
+          setNewChildBirthday(selectedDate);
+        }
+      },
+      mode: 'date',
+      display: 'spinner',
+      minimumDate: new Date('1900-01-01'),
+      maximumDate: new Date(),
+    });
   };
 
   // 子どもを削除する
@@ -156,6 +186,11 @@ function FamilyManagementScreen({ navigation, userId }: any) {
             renderItem={({ item }) => (
                 <View style={styles.childItem}>
                 <Text style={styles.childName}>{item.name}</Text>
+                {item.birthday && (
+                  <Text style={styles.childBirthday}>
+                    {`誕生日: ${format(new Date(item.birthday), 'yyyy/MM/dd')}`}
+                  </Text>
+                )}
                 <View style={styles.buttonsContainer}>
                     <TouchableOpacity onPress={() => startEditing(item)} style={[styles.button, styles.editButton]}>
                     <Text style={styles.buttonText}>編集</Text>
@@ -194,6 +229,12 @@ function FamilyManagementScreen({ navigation, userId }: any) {
                           value={newChildName}
                           onChangeText={setNewChildName}
                       />
+                      <View style={styles.datePickerContainer}>
+                        <Text style={styles.datePickerLabel}>
+                          誕生日: {format(newChildBirthday, 'yyyy/MM/dd')}
+                        </Text>
+                        <Button title="誕生日を選ぶ" onPress={showDatePicker} />
+                      </View>
                       <View style={styles.buttonGroup}>
                           <Button
                           title={editingChild ? 'こどもを更新' : 'こどもを追加'}
@@ -304,6 +345,16 @@ const styles = StyleSheet.create({
         marginBottom: 15,
         fontSize: 16,
     },
+    datePickerContainer: { // ★追加
+        width: '100%',
+        marginBottom: 15,
+        alignItems: 'center',
+    },
+    datePickerLabel: { // ★追加
+        fontSize: 16,
+        marginBottom: 10,
+        fontWeight: 'bold',
+    },
     buttonGroup: {
         flexDirection: 'row',
         justifyContent: 'space-around',
@@ -325,6 +376,11 @@ const styles = StyleSheet.create({
     childName: {
         fontSize: 18,
         flex: 1,
+    },
+    childBirthday: { // ★追加
+        fontSize: 14,
+        color: '#666',
+        marginRight: 10,
     },
     buttonsContainer: {
         flexDirection: 'row',

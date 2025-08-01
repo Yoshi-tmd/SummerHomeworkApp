@@ -2,6 +2,7 @@
 export interface ChildProfile {
   id: string; // こどもを識別するための一意のID
   name: string; // こどもの名前
+  birthday?: string;
   age?: number;
   grade?: string;
 }
