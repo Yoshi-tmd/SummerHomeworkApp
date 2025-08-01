@@ -44,6 +44,16 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
           loadedTasks.push({ id: key, ...data[key] });
         });
       }
+      // ソートロジック: 完了したタスクをリストの後ろに移動
+      loadedTasks.sort((a, b) => {
+        if (a.status === 'completed' && b.status !== 'completed') {
+          return 1; // aをbの後ろに
+        }
+        if (a.status !== 'completed' && b.status === 'completed') {
+          return -1; // bをaの後ろに
+        }
+        return 0; // 順序変更なし
+      });
       setDailyTasks(loadedTasks);
     });
 
@@ -56,6 +66,18 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
             loadedTasks.push({ id: key, ...data[key] });
           });
         }
+        // ソートロジック: 完了したタスクをリストの後ろに移動
+        loadedTasks.sort((a, b) => {
+          if (a.status === 'completed' && b.status !== 'completed') {
+            return 1; // aをbの後ろに
+          }
+          if (a.status !== 'completed' && b.status === 'completed') {
+            return -1; // bをaの後ろに
+          }
+          const deadlineA = new Date(a.deadline);
+          const deadlineB = new Date(b.deadline);
+          return deadlineA.getTime() - deadlineB.getTime(); // 日付のミリ秒を比較してソート
+        });
         setDeadlineTasks(loadedTasks);
         setLoadingTasks(false); // 全てのデータ読み込み完了時にローディングをfalseに
       });
