@@ -76,7 +76,7 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
   }, [userId, currentChild]); // currentChildが変更されたら再読み込み
 
   // タスクを追加または更新する
-  const handleAddOrUpdateTask = async () => {
+const handleAddOrUpdateTask = async () => {
     if (!currentChild) {
       Alert.alert('エラー', 'こどもが選択されていません。');
       return;
@@ -85,9 +85,15 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
       Alert.alert('エラー', 'タスク名を入力してください。');
       return;
     }
-    if (newTaskType === 'deadline' && newDeadline < new Date()) {
-        Alert.alert('エラー', '期限は現在時刻以降に設定してください。');
-        return;
+    // 期限付きタスクの場合、期限が今日以降かチェック
+    if (newTaskType === 'deadline') {
+        const today = new Date();
+        const deadlineDate = new Date(newDeadline.getFullYear(), newDeadline.getMonth(), newDeadline.getDate());
+        const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        if (deadlineDate < todayDate) {
+            Alert.alert('エラー', '期限は今日以降に設定してください。');
+            return;
+        }
     }
 
     try {
@@ -102,16 +108,16 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
             name: newTaskName,
             description: newTaskDescription,
             updatedAt: now,
-            // タイプが変更された場合のハンドリングは別途考慮が必要（今回は単純化）
-            // type: newTaskType, // タイプ変更を許可するなら
         };
         if (newTaskType === 'deadline') {
-            (taskData as DeadlineTask).deadline = newDeadline.toISOString();
+            const deadlineDate = new Date(newDeadline);
+            // 時刻を午前0時（UTC）に設定して、日付情報のみを保持
+            deadlineDate.setHours(0, 0, 0, 0);
+            (taskData as DeadlineTask).deadline = deadlineDate.toISOString();
         } else {
             // dailyからdeadlineに切り替えた場合、古いdeadlineプロパティを削除したいが、
             // 今回はtypeが変更された場合のロジックは複雑になるため、
             // 編集時は元のtaskTypeを維持すると仮定します。
-            // 厳密には、typeが変わったらFirebaseのパスも変わるので、削除＆追加になります。
         }
 
         taskRef = ref(database, `users/${userId}/children/${currentChild.id}/${editingTask.type}Tasks/${editingTask.id}`);
@@ -130,7 +136,10 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
           updatedAt: now,
         };
         if (newTaskType === 'deadline') {
-          (taskData as DeadlineTask).deadline = newDeadline.toISOString();
+          const deadlineDate = new Date(newDeadline);
+          // 時刻を午前0時（UTC）に設定して、日付情報のみを保持
+          deadlineDate.setHours(0, 0, 0, 0);
+          (taskData as DeadlineTask).deadline = deadlineDate.toISOString();
         }
 
         taskRef = ref(database, `users/${userId}/children/${currentChild.id}/${newTaskType}Tasks/${newId}`);
@@ -145,6 +154,76 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
       console.error('Error adding/updating task:', error);
     }
   };
+
+  // const handleAddOrUpdateTask = async () => {
+  //   if (!currentChild) {
+  //     Alert.alert('エラー', 'こどもが選択されていません。');
+  //     return;
+  //   }
+  //   if (newTaskName.trim() === '') {
+  //     Alert.alert('エラー', 'タスク名を入力してください。');
+  //     return;
+  //   }
+  //   if (newTaskType === 'deadline' && newDeadline < new Date()) {
+  //       Alert.alert('エラー', '期限は現在時刻以降に設定してください。');
+  //       return;
+  //   }
+
+  //   try {
+  //     const now = new Date().toISOString(); // ISO文字列で現在時刻を記録
+  //     let taskData: Omit<DailyTask, 'id'> | Omit<DeadlineTask, 'id'>;
+  //     let taskRef;
+
+  //     if (editingTask) {
+  //       // 更新処理
+  //       taskData = {
+  //           ...editingTask, // 既存のデータをコピー
+  //           name: newTaskName,
+  //           description: newTaskDescription,
+  //           updatedAt: now,
+  //           // タイプが変更された場合のハンドリングは別途考慮が必要（今回は単純化）
+  //           // type: newTaskType, // タイプ変更を許可するなら
+  //       };
+  //       if (newTaskType === 'deadline') {
+  //           (taskData as DeadlineTask).deadline = newDeadline.toISOString();
+  //       } else {
+  //           // dailyからdeadlineに切り替えた場合、古いdeadlineプロパティを削除したいが、
+  //           // 今回はtypeが変更された場合のロジックは複雑になるため、
+  //           // 編集時は元のtaskTypeを維持すると仮定します。
+  //           // 厳密には、typeが変わったらFirebaseのパスも変わるので、削除＆追加になります。
+  //       }
+
+  //       taskRef = ref(database, `users/${userId}/children/${currentChild.id}/${editingTask.type}Tasks/${editingTask.id}`);
+  //       await set(taskRef, taskData);
+  //       Alert.alert('成功', 'タスクを更新しました。');
+
+  //     } else {
+  //       // 追加処理
+  //       const newId = uuidv4();
+  //       taskData = {
+  //         name: newTaskName,
+  //         description: newTaskDescription,
+  //         type: newTaskType,
+  //         status: 'notStarted', // 新規タスクは未開始
+  //         createdAt: now,
+  //         updatedAt: now,
+  //       };
+  //       if (newTaskType === 'deadline') {
+  //         (taskData as DeadlineTask).deadline = newDeadline.toISOString();
+  //       }
+
+  //       taskRef = ref(database, `users/${userId}/children/${currentChild.id}/${newTaskType}Tasks/${newId}`);
+  //       await set(taskRef, { id: newId, ...taskData });
+  //       Alert.alert('成功', '新しいタスクを追加しました。');
+  //     }
+
+  //     // フォームをリセットして閉じる
+  //     resetForm();
+  //   } catch (error: any) {
+  //     Alert.alert('エラー', '処理中に問題が発生しました: ' + error.message);
+  //     console.error('Error adding/updating task:', error);
+  //   }
+  // };
 
   // 編集モードにする
   const startEditing = (task: DailyTask | DeadlineTask) => {
@@ -215,46 +294,62 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
     setIsFormVisible(false);
   };
 
+  
 
   // ピッカーを開く新しい関数
-  const showDeadlinePicker = (currentMode: 'date' | 'time') => {
+const showDeadlinePicker = () => {
     DateTimePickerAndroid.open({
       value: newDeadline,
       onChange: (event, selectedDate) => {
-        // このonChangeは DateTimePickerAndroid.open のコールバックです
-        console.log('--- onChange called ---');
-        console.log('currentMode:', currentMode);
-        console.log('event.type:', event.type);
-        console.log('selectedDate:', selectedDate ? selectedDate.toLocaleString() : 'undefined');
-        console.log('newDeadline (before update):', newDeadline.toLocaleString());
-
         if (event.type === 'set' && selectedDate) {
-          setNewDeadline((prevDate) => { // prevDateはsetNewDeadlineが呼ばれる時点でのnewDeadlineの最新値
-            const updatedDate = new Date(prevDate); // 現在のnewDeadlineをベースに新しいDateオブジェクトを作成
-
-            if (currentMode === 'date') {
-              // 日付が選択された場合
-              updatedDate.setFullYear(selectedDate.getFullYear());
-              updatedDate.setMonth(selectedDate.getMonth());
-              updatedDate.setDate(selectedDate.getDate());
-            } else { // currentMode === 'time'
-              // 時刻が選択された場合
-              updatedDate.setHours(selectedDate.getHours());
-              updatedDate.setMinutes(selectedDate.getMinutes());
-            }
-            return updatedDate; // 更新された日付オブジェクトを新しいnewDeadlineとして返す
-          });
-
-          if (currentMode === 'date') {
-            showDeadlinePicker('time'); // 日付選択後、時刻ピッカーを表示
-          }
-        }        // 'dismissed' の場合は何もしない（ピッカーが自動で閉じる）
+          setNewDeadline(selectedDate);
+        }
       },
-      mode: currentMode,
-      is24Hour: true, // 24時間表示にするかどうか
-      minimumDate: new Date(), // 今日以降の日付のみ選択可能にする
+      mode: 'date',
+      is24Hour: true,
+      minimumDate: new Date(),
     });
   };
+
+
+  // const showDeadlinePicker = (currentMode: 'date' | 'time') => {
+  //   DateTimePickerAndroid.open({
+  //     value: newDeadline,
+  //     onChange: (event, selectedDate) => {
+  //       // このonChangeは DateTimePickerAndroid.open のコールバックです
+  //       console.log('--- onChange called ---');
+  //       console.log('currentMode:', currentMode);
+  //       console.log('event.type:', event.type);
+  //       console.log('selectedDate:', selectedDate ? selectedDate.toLocaleString() : 'undefined');
+  //       console.log('newDeadline (before update):', newDeadline.toLocaleString());
+
+  //       if (event.type === 'set' && selectedDate) {
+  //         setNewDeadline((prevDate) => { // prevDateはsetNewDeadlineが呼ばれる時点でのnewDeadlineの最新値
+  //           const updatedDate = new Date(prevDate); // 現在のnewDeadlineをベースに新しいDateオブジェクトを作成
+
+  //           if (currentMode === 'date') {
+  //             // 日付が選択された場合
+  //             updatedDate.setFullYear(selectedDate.getFullYear());
+  //             updatedDate.setMonth(selectedDate.getMonth());
+  //             updatedDate.setDate(selectedDate.getDate());
+  //           } else { // currentMode === 'time'
+  //             // 時刻が選択された場合
+  //             updatedDate.setHours(selectedDate.getHours());
+  //             updatedDate.setMinutes(selectedDate.getMinutes());
+  //           }
+  //           return updatedDate; // 更新された日付オブジェクトを新しいnewDeadlineとして返す
+  //         });
+
+  //         if (currentMode === 'date') {
+  //           showDeadlinePicker('time'); // 日付選択後、時刻ピッカーを表示
+  //         }
+  //       }        // 'dismissed' の場合は何もしない（ピッカーが自動で閉じる）
+  //     },
+  //     mode: currentMode,
+  //     is24Hour: true, // 24時間表示にするかどうか
+  //     minimumDate: new Date(), // 今日以降の日付のみ選択可能にする
+  //   });
+  // };
 
   // 現在表示するタスクのリストを取得
   const tasksToDisplay = activeTab === 'daily' ? dailyTasks : deadlineTasks;
@@ -274,7 +369,7 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
               <Text style={styles.taskName}>{item.name}</Text>
               {item.description && <Text style={styles.taskDescription}>{item.description}</Text>}
               {item.type === 'deadline' && (
-                <Text style={styles.taskDeadline}>期限: {format((item as DeadlineTask).deadline, 'yyyy/MM/dd HH:mm')}</Text>
+                <Text style={styles.taskDeadline}>期限: {format((item as DeadlineTask).deadline, 'yyyy/MM/dd')}</Text>
               )}
               <Text style={styles.taskStatus}>状態: {item.status === 'notStarted' ? '未開始' : item.status === 'inProgress' ? '進行中' : '完了'}</Text>
               <View style={styles.taskActions}>
@@ -395,8 +490,8 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
                   {/* 期限付きタスクの場合のみ日付ピッカーを表示 */}
                   {newTaskType === 'deadline' && (
                     <View style={styles.datePickerContainer}>
-                      <Text style={styles.datePickerLabel}>期限日: {format(newDeadline, 'yyyy/MM/dd HH:mm')}</Text>
-                      <Button title="期限日を選ぶ" onPress={() => showDeadlinePicker('date')} />
+                      <Text style={styles.datePickerLabel}>期限日: {format(newDeadline, 'yyyy/MM/dd')}</Text>
+                      <Button title="期限日を選ぶ" onPress={() => showDeadlinePicker()} />
                     </View>
                   )}
 

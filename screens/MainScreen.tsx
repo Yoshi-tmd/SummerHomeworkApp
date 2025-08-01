@@ -176,7 +176,7 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
                         <Text style={styles.taskNameStyle}>{item.name}</Text>
                         {item.description && <Text style={styles.taskDescriptionStyle}>{item.description}</Text>}
                         <Text style={styles.taskDeadlineStyle}>
-                          期限: {format(new Date((item as DeadlineTask).deadline), 'yyyy/MM/dd HH:mm')}
+                          期限: {format(new Date((item as DeadlineTask).deadline), 'yyyy/MM/dd')}
                         </Text>
                         <Text style={styles.taskStatusStyle}>
                           {item.status === 'completed' ? '完了' : '未完了'}
