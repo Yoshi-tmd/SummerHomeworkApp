@@ -9,7 +9,7 @@ import { ref, onValue, set, remove } from 'firebase/database';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker'; // 日付選択ピッカー
+import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { format } from 'date-fns'; // 日付フォーマット用
 
 // 共通型定義のインポート
@@ -29,7 +29,7 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
   const [newTaskDescription, setNewTaskDescription] = useState('');
   const [newTaskType, setNewTaskType] = useState<TaskType>('daily'); // 'daily' or 'deadline'
   const [newDeadline, setNewDeadline] = useState<Date>(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  // const [showDatePicker, setShowDatePicker] = useState(false);
   const [editingTask, setEditingTask] = useState<DailyTask | DeadlineTask | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
 
@@ -204,8 +204,7 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
       console.error('Error updating task status:', error);
     }
   };
-
-
+  
   // フォームをリセットして閉じる
   const resetForm = () => {
     setEditingTask(null);
@@ -214,13 +213,47 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
     setNewTaskType('daily'); // デフォルトは日次タスク
     setNewDeadline(new Date());
     setIsFormVisible(false);
-    setShowDatePicker(false);
   };
 
-  const onDateChange = (event: any, selectedDate: Date | undefined) => {
-    const currentDate = selectedDate || newDeadline;
-    setShowDatePicker(Platform.OS === 'ios'); // iOSでは選択後も表示し続けるため、条件付きで非表示
-    setNewDeadline(currentDate);
+
+  // ピッカーを開く新しい関数
+  const showDeadlinePicker = (currentMode: 'date' | 'time') => {
+    DateTimePickerAndroid.open({
+      value: newDeadline,
+      onChange: (event, selectedDate) => {
+        // このonChangeは DateTimePickerAndroid.open のコールバックです
+        console.log('--- onChange called ---');
+        console.log('currentMode:', currentMode);
+        console.log('event.type:', event.type);
+        console.log('selectedDate:', selectedDate ? selectedDate.toLocaleString() : 'undefined');
+        console.log('newDeadline (before update):', newDeadline.toLocaleString());
+
+        if (event.type === 'set' && selectedDate) {
+          setNewDeadline((prevDate) => { // prevDateはsetNewDeadlineが呼ばれる時点でのnewDeadlineの最新値
+            const updatedDate = new Date(prevDate); // 現在のnewDeadlineをベースに新しいDateオブジェクトを作成
+
+            if (currentMode === 'date') {
+              // 日付が選択された場合
+              updatedDate.setFullYear(selectedDate.getFullYear());
+              updatedDate.setMonth(selectedDate.getMonth());
+              updatedDate.setDate(selectedDate.getDate());
+            } else { // currentMode === 'time'
+              // 時刻が選択された場合
+              updatedDate.setHours(selectedDate.getHours());
+              updatedDate.setMinutes(selectedDate.getMinutes());
+            }
+            return updatedDate; // 更新された日付オブジェクトを新しいnewDeadlineとして返す
+          });
+
+          if (currentMode === 'date') {
+            showDeadlinePicker('time'); // 日付選択後、時刻ピッカーを表示
+          }
+        }        // 'dismissed' の場合は何もしない（ピッカーが自動で閉じる）
+      },
+      mode: currentMode,
+      is24Hour: true, // 24時間表示にするかどうか
+      minimumDate: new Date(), // 今日以降の日付のみ選択可能にする
+    });
   };
 
   // 現在表示するタスクのリストを取得
@@ -363,16 +396,7 @@ function HomeworkManagementScreen({ navigation, userId, currentChild }: Homework
                   {newTaskType === 'deadline' && (
                     <View style={styles.datePickerContainer}>
                       <Text style={styles.datePickerLabel}>期限日: {format(newDeadline, 'yyyy/MM/dd HH:mm')}</Text>
-                      <Button title="期限日を選ぶ" onPress={() => setShowDatePicker(true)} />
-                      {showDatePicker && (
-                        <DateTimePicker
-                          value={newDeadline}
-                          mode="datetime"
-                          display="default"
-                          onChange={onDateChange}
-                          minimumDate={new Date()} // 現在時刻以降に設定
-                        />
-                      )}
+                      <Button title="期限日を選ぶ" onPress={() => showDeadlinePicker('date')} />
                     </View>
                   )}
 

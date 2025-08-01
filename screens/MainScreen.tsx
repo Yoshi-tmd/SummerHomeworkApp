@@ -1,16 +1,16 @@
 // screens/MainScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity, Alert, Platform, ActivityIndicator, FlatList, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context'; // SafeAreaViewをインポート
+import { StyleSheet, Text, View, Button, TouchableOpacity, Alert, Platform, ActivityIndicator, FlatList, ScrollView } from 'react-native'; // ScrollViewとFlatListを追加
 
 import { database } from '../firebaseConfig'; // Firebase Realtime Database
 import { ref, onValue, set } from 'firebase/database';
 import { auth } from '../firebaseConfig'; // Firebase Authのインスタンス
 import { signOut } from 'firebase/auth'; // ログアウト関数
 
-// types.ts から必要な型をインポート (path.tsからではない点に注意)
+// types.ts から必要な型をインポート
 import { ChildProfile, DailyTask, DeadlineTask, TaskStatus, TaskType } from '../types';
 import { format } from 'date-fns'; // date-fnsのformat関数をインポート
+import { SafeAreaView } from 'react-native-safe-area-context'; // SafeAreaViewをインポート
 
 // メイン画面コンポーネント
 function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId, userId }: any) {
@@ -109,7 +109,7 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollViewContent}>
         <View style={styles.container}>
-          <Text style={styles.title}>メイン画面</Text> {/* Textで囲むことを徹底 */}
+          <Text style={styles.title}>メイン画面</Text>
 
           <Text style={styles.dateText}>{format(selectedDate, 'yyyy年MM月dd日 (E)')}</Text>
 
@@ -176,7 +176,7 @@ function MainScreen({ navigation, selectedDate, currentChild, setCurrentChildId,
                         <Text style={styles.taskNameStyle}>{item.name}</Text>
                         {item.description && <Text style={styles.taskDescriptionStyle}>{item.description}</Text>}
                         <Text style={styles.taskDeadlineStyle}>
-                          期限: {format((item as DeadlineTask).deadline, 'yyyy/MM/dd HH:mm')}
+                          期限: {format(new Date((item as DeadlineTask).deadline), 'yyyy/MM/dd HH:mm')}
                         </Text>
                         <Text style={styles.taskStatusStyle}>
                           {item.status === 'completed' ? '完了' : '未完了'}
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  scrollViewContent: { // ★ScrollView の中身全体に適用するスタイル
+  scrollViewContent: { // ScrollView の中身全体に適用するスタイル
     flexGrow: 1, // コンテンツが画面の高さより小さい場合でも、ScrollView が最低限の高さを持つようにする
     alignItems: 'center', // コンテンツを中央寄せに保つ
     paddingHorizontal: 20, // 左右のパディング
@@ -243,11 +243,8 @@ const styles = StyleSheet.create({
     paddingBottom: 20, // 下部にも少しパディングを追加
   },
   container: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 20 : 0,
-    width: '100%',
+    width: '100%', // ScrollView の中で幅を確保
+    // alignItems は必要であれば保持
   },
   title: {
     fontSize: 28,
@@ -346,9 +343,9 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     marginTop: 20,
-    marginBottom: 20, // 下部のパディング
+    marginBottom: 20,
   },
-  loadingContainer: { // ローディング表示用スタイル
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
